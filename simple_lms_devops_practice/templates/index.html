@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">LEARNING MANAGEMENT SYSTEM</p>
+  <h1>Learn. Practice. Grow.</h1>
+  <p>A simple LMS demo to practise application deployment and production troubleshooting.</p>
+</section>
+<section class="stats">
+  <div class="stat"><strong>{{ courses|length }}</strong><span>Courses</span></div>
+  <div class="stat"><strong>{{ students }}</strong><span>Students</span></div>
+  <div class="stat"><strong>{{ enrollments }}</strong><span>Enrollments</span></div>
+</section>
+<div class="section-heading"><div><p class="eyebrow">AVAILABLE LEARNING</p><h2>Popular courses</h2></div><a class="button secondary" href="/courses">Manage courses</a></div>
+<div class="cards">
+{% for course in courses %}
+  <article class="card">
+    <div class="course-icon">▣</div><h3>{{ course.title }}</h3>
+    <p class="muted">Instructor: {{ course.instructor }}</p><p>{{ course.description }}</p>
+    <div class="card-foot"><span>{{ course.enrolled }} enrolled</span></div>
+  </article>
+{% endfor %}
+</div>
+<section class="panel">
+  <h2>Enroll a student</h2>
+  <form method="post" action="/enroll" class="inline-form">
+    <label>Student
+      <select name="student_id" required>
+        {% for s in get_students() %}<option value="{{ s.id }}">{{ s.name }} ({{ s.email }})</option>{% endfor %}
+      </select>
+    </label>
+    <label>Course
+      <select name="course_id" required>
+        {% for c in courses %}<option value="{{ c.id }}">{{ c.title }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="submit">Enroll student</button>
+  </form>
+</section>
+{% endblock %}

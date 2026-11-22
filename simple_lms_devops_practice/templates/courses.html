@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="section-heading"><div><p class="eyebrow">COURSE CATALOG</p><h1>Courses</h1></div></div>
+<div class="cards">
+{% for c in courses %}
+<article class="card"><div class="course-icon">▣</div><h3>{{ c.title }}</h3><p class="muted">Instructor: {{ c.instructor }}</p><p>{{ c.description }}</p></article>
+{% endfor %}
+</div>
+<section class="panel">
+<h2>Add a course</h2>
+<form method="post" action="/courses/add" class="form-grid">
+<label>Course title<input name="title" required placeholder="e.g. Python for DevOps"></label>
+<label>Instructor<input name="instructor" required placeholder="e.g. Platform Team"></label>
+<label class="full">Description<textarea name="description" required rows="3" placeholder="What will students learn?"></textarea></label>
+<div class="full"><button type="submit">Add course</button></div>
+</form>
+</section>
+{% endblock %}

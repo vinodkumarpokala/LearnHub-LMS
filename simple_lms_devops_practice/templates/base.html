@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title or "LearnHub LMS" }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="/">LearnHub <span>LMS</span></a>
+    <nav><a href="/">Dashboard</a><a href="/courses">Courses</a><a href="/students">Students</a></nav>
+  </div>
+</header>
+<main class="wrap">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}{% for category, message in messages %}
+      <div class="notice {{ category }}">{{ message }}</div>
+    {% endfor %}{% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+<footer><div class="wrap">LearnHub LMS · Demo project for Linux, AWS and DevOps practice</div></footer>
+</body>
+</html>

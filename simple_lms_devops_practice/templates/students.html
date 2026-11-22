@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="eyebrow">LEARNER DIRECTORY</p><h1>Students</h1>
+<div class="panel table-wrap"><table><thead><tr><th>Name</th><th>Email</th></tr></thead><tbody>
+{% for s in students %}<tr><td>{{ s.name }}</td><td>{{ s.email }}</td></tr>{% endfor %}
+</tbody></table></div>
+<p class="muted">Sample students are preloaded for enrollment practice.</p>
+{% endblock %}
