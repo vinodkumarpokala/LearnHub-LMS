@@ -393,3 +393,381 @@ If a remote already exists, inspect it with `git remote -v` rather than adding i
 - [ ] Terraform infrastructure automation
 - [ ] Kubernetes deployment
 - [ ] Prometheus and Grafana monitoring
+
+# Module 6: Docker Data Persistence – LearnHub LMS
+
+## Overview
+
+In this module, we configured persistent storage for the LearnHub LMS application using Docker volumes.
+
+The objective was to ensure that application data stored in the SQLite database remains available even after the Docker container is stopped, removed, or recreated.
+
+This module demonstrates an important real-world DevOps concept: **container lifecycle and application data lifecycle should be managed separately.**
+
+## Learning Objectives
+
+By completing this module, I learned:
+
+- How Docker containers store application data
+- Difference between container storage and persistent storage
+- How Docker named volumes work
+- How to configure a volume for SQLite database persistence
+- How to inspect database records inside a container
+- How to validate application health
+- How to test persistence after container recreation
+
+## Architecture
+
+```text
+User / Browser
+      |
+      | HTTP :8080
+      |
+EC2 Ubuntu Instance
+      |
+      | Docker Port Mapping
+      |
+LearnHub LMS Container
+      |
+      | SQLite Database
+      |
+/data/lms.db
+      |
+      | Docker Named Volume
+      |
+learnhub-data
+```
+
+## Environment
+
+| Component | Configuration |
+|---|---|
+| Cloud | AWS EC2 |
+| Operating System | Ubuntu |
+| Application | Flask LMS |
+| Application Server | Gunicorn |
+| Database | SQLite |
+| Container Runtime | Docker |
+| Container Name | learnhub-lms |
+| Docker Image | learnhub-lms:v1 |
+| Host Port | 8080 |
+| Container Port | 8000 |
+| Database Path | /data/lms.db |
+| Docker Volume | learnhub-data |
+
+## Step 1: Stop and Remove the Existing Container
+
+Before recreating the container, remove the existing container.
+
+```bash
+sudo docker stop learnhub-lms
+```
+
+```bash
+sudo docker rm learnhub-lms
+```
+
+Removing a container does not remove a separately managed named volume.
+
+## Step 2: Create a Container with Persistent Storage
+
+Run the following command:
+
+```bash
+sudo docker run -d \
+  --name learnhub-lms \
+  -p 8080:8000 \
+  -e LMS_DB_PATH=/data/lms.db \
+  -v learnhub-data:/data \
+  --restart unless-stopped \
+  learnhub-lms:v1
+```
+
+### Explanation
+
+| Command | Purpose |
+|---|---|
+| `-d` | Run container in background |
+| `--name learnhub-lms` | Assign container name |
+| `-p 8080:8000` | Map host port 8080 to container port 8000 |
+| `-e LMS_DB_PATH=/data/lms.db` | Configure SQLite database location |
+| `-v learnhub-data:/data` | Mount named volume |
+| `--restart unless-stopped` | Restart container automatically unless manually stopped |
+| `learnhub-lms:v1` | Specify Docker image |
+
+## Step 3: Verify the Container
+
+```bash
+sudo docker ps
+```
+
+Expected result:
+
+```text
+CONTAINER ID   IMAGE             STATUS
+xxxxxxxxxxxx   learnhub-lms:v1   Up
+```
+
+Check container logs:
+
+```bash
+sudo docker logs learnhub-lms
+```
+
+Expected log output:
+
+```text
+Starting gunicorn
+Listening at: http://0.0.0.0:8000
+```
+
+## Step 4: Verify Database Records
+
+Execute the following command:
+
+```bash
+sudo docker exec learnhub-lms python -c "
+import sqlite3
+c = sqlite3.connect('/data/lms.db')
+print('Courses:', c.execute('SELECT COUNT(*) FROM courses').fetchone()[0])
+print('Students:', c.execute('SELECT COUNT(*) FROM students').fetchone()[0])
+print('Enrollments:', c.execute('SELECT COUNT(*) FROM enrollments').fetchone()[0])
+c.close()
+"
+```
+
+### Output from my deployment
+
+```text
+Courses: 3
+Students: 2
+Enrollments: 0
+```
+
+This confirms that the SQLite database contains the expected records.
+
+## Step 5: Verify the Docker Volume
+
+List Docker volumes:
+
+```bash
+sudo docker volume ls
+```
+
+Inspect the volume:
+
+```bash
+sudo docker volume inspect learnhub-data
+```
+
+The volume is managed by Docker and mounted at `/data` inside the container.
+
+## Step 6: Verify Application Health
+
+```bash
+curl http://127.0.0.1:8080/health
+```
+
+Expected output:
+
+```json
+{
+  "database": "connected",
+  "status": "healthy"
+}
+```
+
+This confirms that the application is running and can connect to its database.
+
+## Step 7: Persistence Test
+
+### Test A: Restart the container
+
+```bash
+sudo docker restart learnhub-lms
+```
+
+Check database records again:
+
+```bash
+sudo docker exec learnhub-lms python -c "
+import sqlite3
+c = sqlite3.connect('/data/lms.db')
+print(c.execute('SELECT COUNT(*) FROM courses').fetchone()[0])
+"
+```
+
+Expected result:
+
+```text
+3
+```
+
+### Test B: Remove and recreate the container
+
+Stop and remove the container:
+
+```bash
+sudo docker stop learnhub-lms
+sudo docker rm learnhub-lms
+```
+
+Recreate it using the same volume:
+
+```bash
+sudo docker run -d \
+  --name learnhub-lms \
+  -p 8080:8000 \
+  -e LMS_DB_PATH=/data/lms.db \
+  -v learnhub-data:/data \
+  --restart unless-stopped \
+  learnhub-lms:v1
+```
+
+Verify the database:
+
+```bash
+sudo docker exec learnhub-lms python -c "
+import sqlite3
+c = sqlite3.connect('/data/lms.db')
+print('Courses:', c.execute('SELECT COUNT(*) FROM courses').fetchone()[0])
+print('Students:', c.execute('SELECT COUNT(*) FROM students').fetchone()[0])
+"
+```
+
+Expected output:
+
+```text
+Courses: 3
+Students: 2
+```
+
+The records remain available after container recreation.
+
+## Troubleshooting Notes
+
+### Issue: Database table does not exist
+
+Error:
+
+```text
+sqlite3.OperationalError: no such table: courses
+```
+
+Possible cause:
+
+The application was connected to a new or empty SQLite database.
+
+Investigation:
+
+```bash
+sudo docker exec learnhub-lms env | grep LMS_DB_PATH
+```
+
+```bash
+sudo docker exec learnhub-lms ls -l /data
+```
+
+Resolution:
+
+Ensure the application uses the correct database path and that the existing database is mounted through the Docker volume.
+
+### Issue: Application returns HTTP 500
+
+Investigation:
+
+```bash
+sudo docker logs --tail 100 learnhub-lms
+```
+
+Check database connectivity:
+
+```bash
+curl http://127.0.0.1:8080/health
+```
+
+A healthy database connection does not guarantee that every application table exists. Review the application traceback and database schema.
+
+## Root Cause Analysis
+
+### Problem
+
+Application data can be lost when it is stored only inside a container's writable layer.
+
+### Root Cause
+
+Docker containers are designed to be replaceable. When a container is removed, data stored only in its writable layer is removed with it.
+
+### Resolution
+
+A Docker named volume was configured:
+
+```bash
+-v learnhub-data:/data
+```
+
+The SQLite database was configured to use:
+
+```text
+/data/lms.db
+```
+
+This separates database storage from the container lifecycle.
+
+### Validation
+
+- Container started successfully
+- Application health endpoint returned healthy
+- SQLite database connected successfully
+- Course and student records were verified
+- Data remained available after container recreation
+
+## Important DevOps Concepts
+
+### Container vs Volume
+
+| Container | Volume |
+|---|---|
+| Runs the application | Stores persistent data |
+| Can be recreated | Exists independently |
+| Contains application runtime | Contains database files |
+| Replaceable | Retained until explicitly deleted |
+
+### Important Warning
+
+Do not remove the named volume during normal container replacement.
+
+Avoid:
+
+```bash
+sudo docker rm -v learnhub-lms
+```
+
+Also avoid deleting the volume itself:
+
+```bash
+sudo docker volume rm learnhub-data
+```
+
+These commands can remove persistent data.
+
+## Interview Explanation
+
+"In my LearnHub LMS project, I implemented Docker data persistence using a named volume.
+
+Initially, the SQLite database was stored inside the container. I understood that if the container was removed, the database could be lost.
+
+To solve this, I created a Docker named volume called `learnhub-data` and mounted it at `/data` inside the container. I configured the Flask application to use `/data/lms.db`.
+
+I validated the setup by checking database records, restarting the container, removing it, and recreating it with the same volume.
+
+The course and student records remained available, confirming that persistent storage was working correctly."
+
+## Outcome
+
+Successfully completed the Docker persistence module.
+
+The LearnHub LMS application now uses Docker-managed persistent storage for its SQLite database.
+
+**Next Module:** Docker Compose – Managing the LMS application using declarative configuration.
+
